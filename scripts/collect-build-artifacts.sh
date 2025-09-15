@@ -216,11 +216,16 @@ validate_environment() {
 # Check if required tools are available
 check_dependencies() {
     local missing_deps=()
+    local current_dir="$(pwd)"
+
+    # Change to repo root for dependency checks
+    cd "$REPO_ROOT"
 
     if ! command -v pnpm >/dev/null 2>&1; then
         missing_deps+=("pnpm")
     fi
 
+    # Check if turbo is available through pnpm
     if ! command -v pnpm >/dev/null 2>&1 || ! pnpm turbo --version >/dev/null 2>&1; then
         missing_deps+=("turbo (via pnpm)")
     fi
@@ -232,6 +237,9 @@ check_dependencies() {
     if ! command -v tar >/dev/null 2>&1; then
         missing_deps+=("tar")
     fi
+
+    # Return to original directory
+    cd "$current_dir"
 
     if [ ${#missing_deps[@]} -gt 0 ]; then
         error "Missing required dependencies: ${missing_deps[*]}"
