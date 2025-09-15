@@ -70,27 +70,6 @@ Examples:
 
   # Dry run to validate setup
   ./collect-build-artifacts.sh server ./test/ --dry-run
-
-Monorepo Root Detection:
-  If --root is not specified, the script will attempt to auto-detect the monorepo root from:
-  1. Current script location (assumes script is in monorepo)
-  2. Look for pnpm-workspace.yaml or package.json with workspaces
-
-Package Structure:
-  The script expects packages to be in <monorepo-root>/packages/<package>/ structure.
-
-Environment Detection:
-  If --env is not specified, the script will attempt to auto-detect the environment from:
-  1. Current git branch name (main, staging, prod)
-  2. Fall back to 'main' if detection fails
-
-File Structure Created:
-  The script creates pruned workspace artifacts containing:
-  - Package.json files + pruned pnpm-lock.yaml
-  - Build outputs only (no source code)
-  - Environment file and metadata
-  - Ready for: pnpm install --prod + immediate execution
-
 EOF
 }
 
