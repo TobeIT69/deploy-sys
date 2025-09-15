@@ -8,8 +8,19 @@ set -euo pipefail
 
 # Script configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-GIT_DIR="$SCRIPT_DIR/../git"
-DOTENV_DIR="$SCRIPT_DIR/../dotenv"
+
+# Detect if we're running from symlink at ~/tobeit69 or directly from deploy-sys
+if [[ "$PWD" == */tobeit69 ]] && [[ -L "$0" ]]; then
+    # Running from ~/tobeit69 via symlink
+    BASE_DIR="$(pwd)"
+    GIT_DIR="$BASE_DIR/git"
+    DOTENV_DIR="$BASE_DIR/dotenv"
+else
+    # Running directly from deploy-sys directory
+    BASE_DIR="$(dirname "$SCRIPT_DIR")"
+    GIT_DIR="$BASE_DIR/git"
+    DOTENV_DIR="$BASE_DIR/dotenv"
+fi
 
 # Parameters
 PACKAGE=""
@@ -200,6 +211,7 @@ main() {
     log "Starting local build process"
     log "Package: $PACKAGE"
     log "Environment: $ENVIRONMENT"
+    log "Base directory: $BASE_DIR"
     log "Git directory: $GIT_DIR"
     log "Dotenv directory: $DOTENV_DIR"
 
