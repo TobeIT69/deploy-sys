@@ -125,10 +125,10 @@ setup_dotenv_symlink() {
 
     local package_dir="$GIT_DIR/packages/$PACKAGE"
     local env_file="$DOTENV_DIR/$PACKAGE/.env.$ENVIRONMENT"
-    local target_env="$package_dir/.env"
+    local target_env="$package_dir/.env.local"
 
     if [ ! -d "$package_dir" ]; then
-        error "Package directory does not exist: $package_dir"
+        error "Package  directory does not exist: $package_dir"
     fi
 
     if [ ! -f "$env_file" ]; then
