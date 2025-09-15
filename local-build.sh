@@ -201,36 +201,6 @@ run_build() {
     log "Build completed successfully"
 }
 
-# Collect build artifacts
-collect_artifacts() {
-    log "Collecting build artifacts for $PACKAGE"
-
-    # Determine the collect script path based on where we're running from
-    local collect_script=""
-    if [[ "$PWD" == */tobeit69 ]] && [[ -L "$0" ]]; then
-        # Running from ~/tobeit69 via symlink
-        collect_script="$BASE_DIR/deploy-sys/scripts/collect-build-artifacts.sh"
-    else
-        # Running directly from deploy-sys directory
-        collect_script="$SCRIPT_DIR/scripts/collect-build-artifacts.sh"
-    fi
-
-    if [ ! -f "$collect_script" ]; then
-        error "Collect artifacts script not found: $collect_script"
-    fi
-
-    # Create artifacts directory in base directory
-    local artifacts_dir="$BASE_DIR/artifacts"
-    mkdir -p "$artifacts_dir"
-
-    # Run collect-build-artifacts script
-    log "Running collect-build-artifacts script"
-    cd "$BASE_DIR"
-    "$collect_script" "$PACKAGE" "$artifacts_dir" --env "$ENVIRONMENT" --root "$GIT_DIR" --verbose
-
-    log "Artifact collection completed successfully"
-}
-
 # Main execution function
 main() {
     # Parse and validate arguments
@@ -260,9 +230,6 @@ main() {
 
     # Run build
     run_build
-
-    # Collect build artifacts
-    collect_artifacts
 
     log "Local build process completed successfully"
 }
