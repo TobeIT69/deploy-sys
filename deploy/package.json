@@ -1,0 +1,24 @@
+{
+  "name": "@tobeit69/deploy-cli",
+  "version": "1.0.0",
+  "description": "Deployment CLI for TobeIT69 project",
+  "type": "module",
+  "bin": {
+    "deploy": "./bin/deploy.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "commander": "^12.0.0",
+    "tar": "^7.0.0",
+    "fs-extra": "^11.2.0"
+  },
+  "keywords": [
+    "deploy",
+    "tobeit69"
+  ],
+  "author": "TobeIT69",
+  "license": "ISC",
+  "packageManager": "pnpm@10.15.1"
+}

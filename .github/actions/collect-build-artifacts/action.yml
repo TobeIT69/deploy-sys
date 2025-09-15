@@ -1,0 +1,66 @@
+name: "Collect Build Artifacts"
+description: "Collect pre-built artifacts using the collect-build-artifacts.sh script"
+author: "TobeIT69"
+
+inputs:
+  package:
+    description: "Package name (client or server)"
+    required: true
+  monorepo-root:
+    description: "Path to monorepo root directory (optional, auto-detected if not provided)"
+    required: false
+  debug:
+    description: "Enable debug output"
+    required: false
+    default: "false"
+
+outputs:
+  artifact-path:
+    description: "Path to the generated artifact"
+    value: ${{ steps.collect.outputs.artifact-path }}
+  artifact-name:
+    description: "Name of the generated artifact file"
+    value: ${{ steps.collect.outputs.artifact-name }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Collect build artifacts
+      id: collect
+      shell: bash
+      run: |
+        # Set debug flag if enabled
+        VERBOSE_FLAG=""
+        if [ "${{ inputs.debug }}" = "true" ]; then
+          VERBOSE_FLAG="--verbose"
+        fi
+
+        # Set root flag if provided
+        ROOT_FLAG=""
+        if [ -n "${{ inputs.monorepo-root }}" ]; then
+          ROOT_FLAG="--root ${{ inputs.monorepo-root }}"
+        fi
+
+        # Create output directory in runner temp
+        OUTPUT_DIR="${RUNNER_TEMP}/artifacts"
+        mkdir -p "$OUTPUT_DIR"
+
+        cd ${{ github.action_path }}
+        cd ../../../
+        # Make script executable and run it
+        chmod +x ./scripts/collect-build-artifacts.sh
+        ./scripts/collect-build-artifacts.sh "${{ inputs.package }}" "$OUTPUT_DIR" $ROOT_FLAG $VERBOSE_FLAG
+
+        # Find the generated artifact
+        ARTIFACT_FILE=$(find "$OUTPUT_DIR" -name "tobeit69-${{ inputs.package }}-*.tar.gz" | head -1)
+
+        if [ -z "$ARTIFACT_FILE" ]; then
+          echo "Error: No artifact file found"
+          exit 1
+        fi
+
+        # Set outputs
+        echo "artifact-path=$ARTIFACT_FILE" >> $GITHUB_OUTPUT
+        echo "artifact-name=$(basename "$ARTIFACT_FILE")" >> $GITHUB_OUTPUT
+
+        echo "Generated artifact: $ARTIFACT_FILE"
