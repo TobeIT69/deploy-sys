@@ -13,6 +13,9 @@ inputs:
     description: "Enable CDN mode (exclude static assets, generate manifest)"
     required: false
     default: "false"
+  cdn-assets-url:
+    description: "CDN assets URL for assetPrefix (required when use-cdn is true)"
+    required: false
   debug:
     description: "Enable debug output"
     required: false
@@ -49,6 +52,11 @@ runs:
         CDN_FLAG=""
         if [ "${{ inputs.use-cdn }}" = "true" ]; then
           CDN_FLAG="--use-cdn"
+        fi
+
+        # Set CDN assets URL environment variable if provided
+        if [ -n "${{ inputs.cdn-assets-url }}" ]; then
+          export NEXT_CDN_ASSETS_URL="${{ inputs.cdn-assets-url }}"
         fi
 
         # Create output directory in runner temp

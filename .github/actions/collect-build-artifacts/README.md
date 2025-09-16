@@ -9,6 +9,7 @@ A composite GitHub Action that collects pre-built artifacts from the TobeIT69 wo
 | `package` | Package name (`client` or `server`) | Yes | - |
 | `monorepo-root` | Path to monorepo root directory (optional, auto-detected if not provided) | No | Auto-detected |
 | `use-cdn` | Enable CDN mode (exclude static assets, generate manifest) | No | `false` |
+| `cdn-assets-url` | CDN assets URL for assetPrefix (required when `use-cdn` is true) | No | - |
 | `debug` | Enable debug output | No | `false` |
 
 ## Outputs
@@ -65,6 +66,7 @@ steps:
     with:
       package: client
       use-cdn: true
+      cdn-assets-url: "https://cdn.example.com/assets"
       debug: true
 
   - name: Upload CDN artifacts

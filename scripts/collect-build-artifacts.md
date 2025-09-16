@@ -62,10 +62,12 @@ This approach separates build complexity from deployment simplicity, ensuring de
 # Verbose logging with temp file preservation
 ./collect-build-artifacts.sh client ./artifacts/ --verbose --keep-temp
 
-# CDN mode for optimized static asset deployment
+# CDN mode for optimized static asset deployment (requires NEXT_CDN_ASSETS_URL)
+export NEXT_CDN_ASSETS_URL="https://cdn.example.com/assets"
 ./collect-build-artifacts.sh client ./artifacts/ --use-cdn
 
 # CDN mode with custom root and verbose logging
+export NEXT_CDN_ASSETS_URL="https://cdn.example.com/assets"
 ./collect-build-artifacts.sh client ./artifacts/ --root /path/to/monorepo --use-cdn --verbose
 ```
 
@@ -92,6 +94,15 @@ The script validates the following before proceeding:
 - `jq` for JSON processing
 - `tar` for archive creation
 - `git` for commit hash extraction (optional)
+
+#### Environment Variables (CDN Mode)
+
+When using `--use-cdn` flag, the following environment variable is required:
+
+- `NEXT_CDN_ASSETS_URL`: CDN base URL for static assets (must match Next.js `assetPrefix`)
+  - **Example**: `https://cdn.example.com/assets`
+  - **Purpose**: Links build artifact to the CDN configuration used during Next.js build
+  - **Validation**: Must be a valid HTTP/HTTPS URL
 
 #### Package Structure
 
@@ -170,6 +181,7 @@ Creates `metadata.json` with deployment information:
     "pnpmVersion": "9.1.0",
     "buildTime": "2024-01-15T10:30:00Z"
   },
+  "assetPrefix": "https://cdn.example.com/assets",
   "cdnAssets": {
     "packages/client/.next/static/chunks": ["app-123.js", "framework-456.js"],
     "packages/client/.next/static/css": ["app-789.css"]

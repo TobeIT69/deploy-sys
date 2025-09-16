@@ -296,6 +296,34 @@ validate_build_outputs() {
     verbose_log "Build outputs validation passed"
 }
 
+# Validate CDN environment when CDN mode is enabled
+validate_cdn_environment() {
+    if [ "$USE_CDN" != true ]; then
+        verbose_log "CDN mode disabled, skipping CDN environment validation"
+        return
+    fi
+
+    verbose_log "Validating CDN environment variables"
+
+    if [ -z "$NEXT_CDN_ASSETS_URL" ]; then
+        error "NEXT_CDN_ASSETS_URL environment variable is required when using --use-cdn flag.
+This URL should match the assetPrefix configured in your Next.js build process.
+Example: export NEXT_CDN_ASSETS_URL='https://cdn.example.com/assets'"
+    fi
+
+    # Basic URL validation
+    case "$NEXT_CDN_ASSETS_URL" in
+        http://*|https://*)
+            verbose_log "CDN assets URL is valid: $NEXT_CDN_ASSETS_URL"
+            ;;
+        *)
+            error "NEXT_CDN_ASSETS_URL must be a valid HTTP or HTTPS URL. Got: $NEXT_CDN_ASSETS_URL"
+            ;;
+    esac
+
+    verbose_log "CDN environment validation passed"
+}
+
 # Create output directory
 prepare_output_directory() {
     if [ "$DRY_RUN" = true ]; then
@@ -547,7 +575,24 @@ add_deployment_metadata() {
     # Create metadata with CDN assets using jq for proper JSON formatting
     if command -v jq >/dev/null 2>&1; then
         # Use jq to properly merge the CDN assets into metadata
-        cat > "$metadata_file" << EOF
+        if [ "$USE_CDN" = true ]; then
+            cat > "$metadata_file" << EOF
+{
+  "environment": "$ENVIRONMENT",
+  "package": "$PACKAGE",
+  "commit": "$commit_hash",
+  "timestamp": "$timestamp",
+  "buildInfo": {
+    "nodeVersion": "$node_version",
+    "pnpmVersion": "$pnpm_version",
+    "buildTime": "$timestamp"
+  },
+  "assetPrefix": "$NEXT_CDN_ASSETS_URL",
+  "cdnAssets": $cdn_assets_json
+}
+EOF
+        else
+            cat > "$metadata_file" << EOF
 {
   "environment": "$ENVIRONMENT",
   "package": "$PACKAGE",
@@ -561,9 +606,27 @@ add_deployment_metadata() {
   "cdnAssets": $cdn_assets_json
 }
 EOF
+        fi
     else
         # Fallback without jq (less robust but functional)
-        cat > "$metadata_file" << EOF
+        if [ "$USE_CDN" = true ]; then
+            cat > "$metadata_file" << EOF
+{
+  "environment": "$ENVIRONMENT",
+  "package": "$PACKAGE",
+  "commit": "$commit_hash",
+  "timestamp": "$timestamp",
+  "buildInfo": {
+    "nodeVersion": "$node_version",
+    "pnpmVersion": "$pnpm_version",
+    "buildTime": "$timestamp"
+  },
+  "assetPrefix": "$NEXT_CDN_ASSETS_URL",
+  "cdnAssets": $cdn_assets_json
+}
+EOF
+        else
+            cat > "$metadata_file" << EOF
 {
   "environment": "$ENVIRONMENT",
   "package": "$PACKAGE",
@@ -577,6 +640,7 @@ EOF
   "cdnAssets": $cdn_assets_json
 }
 EOF
+        fi
     fi
 
     verbose_log "Deployment metadata added successfully"
@@ -690,6 +754,7 @@ main() {
     check_dependencies
     validate_package_structure
     validate_build_outputs
+    validate_cdn_environment
     prepare_output_directory
 
     if [ "$DRY_RUN" = true ]; then
