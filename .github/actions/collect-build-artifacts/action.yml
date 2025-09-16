@@ -9,6 +9,10 @@ inputs:
   monorepo-root:
     description: "Path to monorepo root directory (optional, auto-detected if not provided)"
     required: false
+  use-cdn:
+    description: "Enable CDN mode (exclude static assets, generate manifest)"
+    required: false
+    default: "false"
   debug:
     description: "Enable debug output"
     required: false
@@ -41,6 +45,12 @@ runs:
           ROOT_FLAG="--root ${{ inputs.monorepo-root }}"
         fi
 
+        # Set CDN flag if enabled
+        CDN_FLAG=""
+        if [ "${{ inputs.use-cdn }}" = "true" ]; then
+          CDN_FLAG="--use-cdn"
+        fi
+
         # Create output directory in runner temp
         OUTPUT_DIR="${RUNNER_TEMP}/artifacts"
         mkdir -p "$OUTPUT_DIR"
@@ -49,7 +59,7 @@ runs:
         cd ../../../
         # Make script executable and run it
         chmod +x ./scripts/collect-build-artifacts.sh
-        ./scripts/collect-build-artifacts.sh "${{ inputs.package }}" "$OUTPUT_DIR" $ROOT_FLAG $VERBOSE_FLAG
+        ./scripts/collect-build-artifacts.sh "${{ inputs.package }}" "$OUTPUT_DIR" $ROOT_FLAG $CDN_FLAG $VERBOSE_FLAG
 
         # Find the generated artifact
         ARTIFACT_FILE=$(find "$OUTPUT_DIR" -name "tobeit69-${{ inputs.package }}-*.tar.gz" | head -1)

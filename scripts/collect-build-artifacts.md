@@ -39,7 +39,9 @@ This approach separates build complexity from deployment simplicity, ensuring de
 
 | Option                        | Description                                    | Default       |
 | ----------------------------- | ---------------------------------------------- | ------------- |
+| `--root <monorepo-root>`      | Custom monorepo root directory                | Auto-detected |
 | `--env <main\|staging\|prod>` | Target environment (auto-detected from branch) | Auto-detected |
+| `--use-cdn`                   | Enable CDN mode (exclude static assets, generate manifest) | false |
 | `--dry-run`                   | Validate setup without collecting              | false         |
 | `--verbose`                   | Detailed logging                               | false         |
 | `--keep-temp`                 | Keep temporary files for debugging             | false         |
@@ -59,6 +61,12 @@ This approach separates build complexity from deployment simplicity, ensuring de
 
 # Verbose logging with temp file preservation
 ./collect-build-artifacts.sh client ./artifacts/ --verbose --keep-temp
+
+# CDN mode for optimized static asset deployment
+./collect-build-artifacts.sh client ./artifacts/ --use-cdn
+
+# CDN mode with custom root and verbose logging
+./collect-build-artifacts.sh client ./artifacts/ --root /path/to/monorepo --use-cdn --verbose
 ```
 
 ## Environment Detection
@@ -113,11 +121,14 @@ Creates a Docker-optimized workspace containing:
 **For Client Package:**
 
 - `.next/` directory (Next.js build output)
+  - **Standard mode**: Includes all files including `.next/static/`
+  - **CDN mode** (`--use-cdn`): Excludes `.next/static/` directory, creates empty placeholder
 - `public/` directory (static assets, if present)
 
 **For Server Package:**
 
 - `dist/` directory (compiled TypeScript)
+- Not affected by CDN mode
 
 #### 3. Environment Files
 
@@ -131,6 +142,7 @@ The script searches for environment files in this order:
 
 Creates `metadata.json` with deployment information:
 
+**Standard Mode:**
 ```json
 {
   "environment": "staging",
@@ -141,6 +153,26 @@ Creates `metadata.json` with deployment information:
     "nodeVersion": "20.10.0",
     "pnpmVersion": "9.1.0",
     "buildTime": "2024-01-15T10:30:00Z"
+  },
+  "cdnAssets": {}
+}
+```
+
+**CDN Mode (`--use-cdn`):**
+```json
+{
+  "environment": "staging",
+  "package": "client",
+  "commit": "abc123def456...",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "buildInfo": {
+    "nodeVersion": "20.10.0",
+    "pnpmVersion": "9.1.0",
+    "buildTime": "2024-01-15T10:30:00Z"
+  },
+  "cdnAssets": {
+    "packages/client/.next/static/chunks": ["app-123.js", "framework-456.js"],
+    "packages/client/.next/static/css": ["app-789.css"]
   }
 }
 ```
@@ -149,14 +181,21 @@ Creates `metadata.json` with deployment information:
 
 Creates compressed tarball with naming convention:
 
+**Standard Mode:**
 ```
 tobeit69-{package}-{environment}-{commit-hash}.tar.gz
 ```
 
+**CDN Mode:**
+```
+tobeit69-{package}-{environment}-{commit-hash}-cdn.tar.gz
+```
+
 Examples:
 
-- `tobeit69-client-staging-abc123d.tar.gz`
-- `tobeit69-server-prod-def456a.tar.gz`
+- `tobeit69-client-staging-abc123d.tar.gz` (standard)
+- `tobeit69-client-staging-abc123d-cdn.tar.gz` (CDN mode)
+- `tobeit69-server-prod-def456a.tar.gz` (server packages unaffected by CDN mode)
 
 ### Directory Structure
 

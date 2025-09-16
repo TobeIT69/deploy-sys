@@ -19,6 +19,7 @@ ENVIRONMENT=""
 DRY_RUN=false
 VERBOSE=false
 KEEP_TEMP=false
+USE_CDN=false
 
 # Logging functions
 log() {
@@ -50,6 +51,7 @@ Arguments:
 Options:
   --root <monorepo-root>           Custom monorepo root directory (default: auto-detect)
   --env <main|staging|prod>        Target environment (optional, auto-detected from branch)
+  --use-cdn                        Enable CDN mode (exclude static assets, generate manifest)
   --dry-run                        Validate setup without collecting
   --verbose                        Detailed logging
   --keep-temp                      Keep temporary files for debugging (default: false)
@@ -110,6 +112,10 @@ parse_args() {
                 ;;
             --keep-temp)
                 KEEP_TEMP=true
+                shift
+                ;;
+            --use-cdn)
+                USE_CDN=true
                 shift
                 ;;
             -h|--help)
@@ -330,6 +336,82 @@ create_pruned_workspace() {
     echo "$prune_dir/json" # Return the path for use by other functions
 }
 
+# Generate CDN asset manifest
+generate_cdn_asset_manifest() {
+    local package_dir="$REPO_ROOT/packages/$PACKAGE"
+
+    if [ "$USE_CDN" != true ]; then
+        echo "{}"
+        return
+    fi
+
+    verbose_log "Generating CDN asset manifest for package: $PACKAGE"
+
+    case "$PACKAGE" in
+        client)
+            # Find all static assets in .next/static
+            local static_dir="$package_dir/.next/static"
+            if [ -d "$static_dir" ]; then
+                # Use find and jq to generate the manifest
+                local temp_files=$(mktemp)
+
+                # Find all files and group by directory
+                find "$static_dir" -type f | while read -r file; do
+                    local relative_path="${file#$static_dir/}"
+                    local dir_path=$(dirname "$relative_path")
+                    local file_name=$(basename "$relative_path")
+                    echo "packages/client/.next/static/$dir_path|$file_name"
+                done | sort > "$temp_files"
+
+                # Build JSON using awk
+                local cdn_manifest=$(awk -F'|' '
+                BEGIN {
+                    print "{"
+                    current_dir = ""
+                    first_dir = 1
+                }
+                {
+                    dir = $1
+                    file = $2
+
+                    if (dir != current_dir) {
+                        if (current_dir != "") {
+                            print "  ],"
+                        }
+                        if (first_dir) {
+                            first_dir = 0
+                        } else if (current_dir == "") {
+                            # This handles the very first directory
+                        }
+                        printf "  \"%s\": [\n", dir
+                        printf "    \"%s\"", file
+                        current_dir = dir
+                    } else {
+                        printf ",\n    \"%s\"", file
+                    }
+                }
+                END {
+                    if (current_dir != "") {
+                        print "\n  ]"
+                    }
+                    print "}"
+                }' "$temp_files")
+
+                rm -f "$temp_files"
+                verbose_log "Generated CDN manifest with static assets"
+                echo "$cdn_manifest"
+            else
+                echo "{}"
+            fi
+            ;;
+        server)
+            # Server packages typically don't have static assets for CDN
+            verbose_log "Server package - no CDN assets to manifest"
+            echo "{}"
+            ;;
+    esac
+}
+
 # Copy build artifacts into pruned workspace
 copy_build_artifacts() {
     local pruned_workspace="$1"
@@ -350,8 +432,18 @@ copy_build_artifacts() {
         client)
             # Copy Next.js build outputs
             if [ -d "$package_dir/.next" ]; then
-                verbose_log "Copying .next directory"
-                cp -r "$package_dir/.next" "$target_package_dir/.next"
+                if [ "$USE_CDN" = true ]; then
+                    verbose_log "Copying .next directory (excluding static assets for CDN)"
+                    # Copy everything except static directory
+                    find "$package_dir/.next" -mindepth 1 -maxdepth 1 ! -name "static" -exec cp -r {} "$target_package_dir/.next/" \;
+
+                    # Create empty static directory to maintain structure
+                    mkdir -p "$target_package_dir/.next/static"
+                    verbose_log "Static assets excluded - will be served from CDN"
+                else
+                    verbose_log "Copying .next directory (including static assets)"
+                    cp -r "$package_dir/.next" "$target_package_dir/.next"
+                fi
             fi
 
             # Copy public directory if it exists
@@ -366,6 +458,7 @@ copy_build_artifacts() {
                 verbose_log "Copying dist directory"
                 cp -r "$package_dir/dist" "$target_package_dir/dist"
             fi
+            # Server packages are not affected by CDN mode
             ;;
     esac
 
@@ -436,6 +529,10 @@ add_deployment_metadata() {
         verbose_log "No environment file found, skipping environment file copy"
     fi
 
+    # Generate CDN asset manifest
+    local cdn_assets_json
+    cdn_assets_json=$(generate_cdn_asset_manifest)
+
     # Generate metadata.json
     local metadata_file="$pruned_workspace/metadata.json"
     local node_version=""
@@ -445,8 +542,12 @@ add_deployment_metadata() {
     node_version=$(node --version 2>/dev/null | sed 's/^v//' || echo "unknown")
     pnpm_version=$(pnpm --version 2>/dev/null || echo "unknown")
 
-    verbose_log "Generating metadata.json"
-    cat > "$metadata_file" << EOF
+    verbose_log "Generating metadata.json with CDN assets manifest"
+
+    # Create metadata with CDN assets using jq for proper JSON formatting
+    if command -v jq >/dev/null 2>&1; then
+        # Use jq to properly merge the CDN assets into metadata
+        cat > "$metadata_file" << EOF
 {
   "environment": "$ENVIRONMENT",
   "package": "$PACKAGE",
@@ -456,9 +557,27 @@ add_deployment_metadata() {
     "nodeVersion": "$node_version",
     "pnpmVersion": "$pnpm_version",
     "buildTime": "$timestamp"
-  }
+  },
+  "cdnAssets": $cdn_assets_json
 }
 EOF
+    else
+        # Fallback without jq (less robust but functional)
+        cat > "$metadata_file" << EOF
+{
+  "environment": "$ENVIRONMENT",
+  "package": "$PACKAGE",
+  "commit": "$commit_hash",
+  "timestamp": "$timestamp",
+  "buildInfo": {
+    "nodeVersion": "$node_version",
+    "pnpmVersion": "$pnpm_version",
+    "buildTime": "$timestamp"
+  },
+  "cdnAssets": $cdn_assets_json
+}
+EOF
+    fi
 
     verbose_log "Deployment metadata added successfully"
 }
@@ -482,7 +601,11 @@ package_artifact() {
     fi
 
     # Generate artifact name as per BUILD_AND_DEPLOY.md specification
-    artifact_name="tobeit69-$PACKAGE-$ENVIRONMENT-$commit_hash.tar.gz"
+    if [ "$USE_CDN" = true ]; then
+        artifact_name="tobeit69-$PACKAGE-$ENVIRONMENT-$commit_hash-cdn.tar.gz"
+    else
+        artifact_name="tobeit69-$PACKAGE-$ENVIRONMENT-$commit_hash.tar.gz"
+    fi
     local artifact_path="$OUTPUT_DIR/$artifact_name"
 
     verbose_log "Packaging artifact: $artifact_name"
@@ -555,6 +678,13 @@ main() {
     validate_environment
 
     log "Starting artifact collection for package: $PACKAGE"
+
+    if [ "$USE_CDN" = true ]; then
+        log "CDN mode enabled - static assets will be excluded from artifact"
+        log "CDN assets manifest will be generated in metadata.json"
+    else
+        log "Standard mode - all assets will be included in artifact"
+    fi
 
     # Check dependencies and validate inputs
     check_dependencies
