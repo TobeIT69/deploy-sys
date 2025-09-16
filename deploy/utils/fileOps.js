@@ -44,10 +44,32 @@ export async function readMetadata(artifactPath) {
 }
 
 export async function updateSymlink(target, linkPath) {
-  if (await fs.pathExists(linkPath)) {
-    await fs.remove(linkPath);
+  try {
+    // First try to remove any existing symlink or file
+    if (await fs.pathExists(linkPath)) {
+      await fs.remove(linkPath);
+    }
+  } catch (error) {
+    // If removal fails, log but continue (might not exist)
+    console.warn(`Warning: Could not remove existing symlink at ${linkPath}:`, error.message);
   }
-  await fs.symlink(target, linkPath);
+
+  try {
+    // Create the new symlink
+    await fs.symlink(target, linkPath);
+  } catch (error) {
+    if (error.code === 'EEXIST') {
+      // If symlink already exists, force remove and try again
+      try {
+        await fs.unlink(linkPath);
+        await fs.symlink(target, linkPath);
+      } catch (retryError) {
+        throw new Error(`Failed to create symlink after retry: ${retryError.message}`);
+      }
+    } else {
+      throw error;
+    }
+  }
 }
 
 export async function execCommand(command) {
