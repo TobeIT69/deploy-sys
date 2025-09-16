@@ -163,7 +163,15 @@ export async function deploy(options) {
     logger.info(`Version: ${versionInfo}`);
     logger.info(`Release: ${releasePath}`);
 
-    process.exit(0);
+    // Return success result instead of exiting
+    return {
+      success: true,
+      packageName,
+      environment,
+      commit,
+      versionInfo,
+      releasePath,
+    };
   } catch (error) {
     logger.error(`Deployment failed: ${error.message}`);
     if (options.verbose) {
@@ -175,7 +183,8 @@ export async function deploy(options) {
       await cleanupFailedDeployment(releasePath, logger);
     }
 
-    process.exit(1);
+    // Re-throw error instead of exiting
+    throw error;
   }
 }
 

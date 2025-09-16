@@ -131,13 +131,13 @@ export async function rollback(options) {
     logger.info(`Rolled back to: ${rollbackTarget.version}`);
     logger.info(`Commit: ${rollbackTarget.commit}`);
 
-    process.exit(0);
+    return { success: true };
   } catch (error) {
     logger.error(`Rollback failed: ${error.message}`);
     if (options.verbose) {
       logger.error(error.stack);
     }
-    process.exit(1);
+    throw error;
   }
 }
 

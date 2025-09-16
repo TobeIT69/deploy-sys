@@ -164,6 +164,6 @@ export async function status(options) {
     if (options.verbose) {
       console.error(error.stack);
     }
-    process.exit(1);
+    throw error;
   }
 }

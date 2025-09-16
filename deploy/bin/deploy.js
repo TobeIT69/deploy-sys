@@ -19,7 +19,18 @@ program
   )
   .option("--dry-run", "Validate without deploying", false)
   .option("-v, --verbose", "Detailed logging", false)
-  .action(deploy);
+  .action(async (options) => {
+    try {
+      const result = await deploy(options);
+      if (result?.success) {
+        process.exit(0);
+      } else {
+        process.exit(1);
+      }
+    } catch (error) {
+      process.exit(1);
+    }
+  });
 
 program
   .command("rollback")
@@ -32,7 +43,18 @@ program
     "Specific deployment attempt (format: YYYY-MM-DD-HH-mm)"
   )
   .option("-v, --verbose", "Detailed logging", false)
-  .action(rollback);
+  .action(async (options) => {
+    try {
+      const result = await rollback(options);
+      if (result?.success) {
+        process.exit(0);
+      } else {
+        process.exit(1);
+      }
+    } catch (error) {
+      process.exit(1);
+    }
+  });
 
 program
   .command("status")
@@ -40,7 +62,14 @@ program
   .requiredOption("-p, --package <name>", "Package name (client|server)")
   .requiredOption("-e, --env <environment>", "Environment (main|staging|prod)")
   .option("-v, --verbose", "Show detailed status information", false)
-  .action(status);
+  .action(async (options) => {
+    try {
+      await status(options);
+      process.exit(0);
+    } catch (error) {
+      process.exit(1);
+    }
+  });
 
 program
   .command("list")
@@ -49,6 +78,13 @@ program
   .requiredOption("-e, --env <environment>", "Environment (main|staging|prod)")
   .option("-l, --limit <number>", "Limit number of deployments shown", "10")
   .option("-v, --verbose", "Show detailed deployment information", false)
-  .action(list);
+  .action(async (options) => {
+    try {
+      await list(options);
+      process.exit(0);
+    } catch (error) {
+      process.exit(1);
+    }
+  });
 
 program.parse();
