@@ -462,6 +462,7 @@ copy_build_artifacts() {
             if [ -d "$package_dir/.next" ]; then
                 if [ "$USE_CDN" = true ]; then
                     verbose_log "Copying .next directory (excluding static assets for CDN)"
+                    mkdir -p "$target_package_dir/.next"
                     # Copy everything except static directory
                     find "$package_dir/.next" -mindepth 1 -maxdepth 1 ! -name "static" -exec cp -r {} "$target_package_dir/.next/" \;
 
