@@ -171,9 +171,9 @@ export async function deploy(options) {
     }
 
     // Cleanup failed deployment
-    // if (releasePath) {
-    //   await cleanupFailedDeployment(releasePath, logger);
-    // }
+    if (releasePath) {
+      await cleanupFailedDeployment(releasePath, logger);
+    }
 
     process.exit(1);
   }
