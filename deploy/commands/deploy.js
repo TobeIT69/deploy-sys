@@ -6,7 +6,6 @@ import {
   extractArtifact,
   readMetadata,
   updateSymlink,
-  createTempDir,
   execCommand,
 } from "../utils/fileOps.js";
 import {
@@ -23,25 +22,53 @@ import {
   cleanupFailedDeployment,
 } from "../utils/cleanup.js";
 import { copyEnvironmentFile } from "../utils/envFiles.js";
+import {
+  downloadArtifactFromRun,
+  cleanupArtifactDownload,
+} from "../utils/artifactDownloader.js";
+import { updateDeploymentStatus } from "../utils/deploymentStatus.js";
 
 export async function deploy(options) {
   const logger = new Logger(options.verbose);
   let releasePath = null;
+  let downloadTempDir = null;
 
   try {
     logger.info("Starting deployment process");
 
+    let artifactPath = options.artifact;
+    let metadata;
+
+    // Handle GitHub Actions run ID mode
+    if (options.runId) {
+      logger.step("Downloading artifact from GitHub Actions");
+
+      // Update deployment status if deployment ID is provided
+      if (options.deploymentId) {
+        await updateDeploymentStatus(
+          options.deploymentId,
+          "in_progress",
+          `Downloading artifact for ${options.package} deployment`
+        );
+      }
+
+      const downloadResult = await downloadArtifactFromRun(
+        options.runId,
+        options.package
+      );
+
+      artifactPath = downloadResult.artifactPath;
+      downloadTempDir = downloadResult.tempDir;
+
+      logger.info(`📦 Downloaded artifact: ${artifactPath}`);
+    }
+
     // Step 1: Validate artifact and extract metadata
     logger.step("Validating artifact and extracting metadata");
-    const metadata = await readMetadata(options.artifact);
+    metadata = await readMetadata(artifactPath);
     logger.debug(`Metadata: ${JSON.stringify(metadata, null, 2)}`);
 
-    const {
-      environment,
-      package: packageName,
-      commit,
-      timestamp: buildTimestamp,
-    } = metadata;
+    const { environment, package: packageName, commit } = metadata;
 
     // Log CDN mode information
     if (isCdnMode(metadata)) {
@@ -80,7 +107,7 @@ export async function deploy(options) {
 
     // Step 3: Extract artifact to release directory
     logger.step("Extracting artifact to release directory");
-    await extractArtifact(options.artifact, releasePath);
+    await extractArtifact(artifactPath, releasePath);
 
     // Step 4: Copy environment file
     logger.step("Copying environment file");
@@ -98,6 +125,16 @@ export async function deploy(options) {
 
     // Step 7: Atomic deployment
     logger.step("Performing atomic deployment");
+
+    // Update deployment status if deployment ID is provided
+    if (options.deploymentId) {
+      await updateDeploymentStatus(
+        options.deploymentId,
+        "in_progress",
+        `Deploying ${packageName} to ${environment}`
+      );
+    }
+
     await updateSymlink(releasePath, paths.current);
 
     // Step 8: Start or reload PM2 service
@@ -156,6 +193,15 @@ export async function deploy(options) {
     // Step 12: Cleanup old deployments
     await cleanupDeployments(environment, packageName, logger);
 
+    // Update deployment status to success if deployment ID is provided
+    if (options.deploymentId) {
+      await updateDeploymentStatus(
+        options.deploymentId,
+        "success",
+        `Successfully deployed ${packageName} to ${environment}`
+      );
+    }
+
     logger.success(`✨ Deployment completed successfully!`);
     logger.info(`Package: ${packageName}`);
     logger.info(`Environment: ${environment}`);
@@ -178,6 +224,15 @@ export async function deploy(options) {
       logger.error(error.stack);
     }
 
+    // Update deployment status to failure if deployment ID is provided
+    if (options.deploymentId) {
+      await updateDeploymentStatus(
+        options.deploymentId,
+        "failure",
+        `Deployment failed: ${error.message}`
+      );
+    }
+
     // Cleanup failed deployment
     if (releasePath) {
       await cleanupFailedDeployment(releasePath, logger);
@@ -185,6 +240,18 @@ export async function deploy(options) {
 
     // Re-throw error instead of exiting
     throw error;
+  } finally {
+    // Cleanup downloaded artifact if it was downloaded
+    if (downloadTempDir) {
+      try {
+        await cleanupArtifactDownload(downloadTempDir);
+        logger.debug(`🧹 Cleaned up downloaded artifact: ${downloadTempDir}`);
+      } catch (cleanupError) {
+        logger.warn(
+          `Failed to cleanup downloaded artifact: ${cleanupError.message}`
+        );
+      }
+    }
   }
 }
 

@@ -131,3 +131,57 @@ export async function cleanupFailedDeployment(releasePath, logger) {
     logger.debug("Failed deployment directory removed");
   }
 }
+
+export async function cleanupWebhookArtifacts(tempDir, logger) {
+  if (!tempDir) {
+    return;
+  }
+
+  logger.debug(`Cleaning up webhook artifact temp directory: ${tempDir}`);
+
+  if (await fs.pathExists(tempDir)) {
+    await fs.remove(tempDir);
+    logger.debug("Webhook artifact temp directory removed");
+  }
+}
+
+export async function cleanupOldWebhookArtifacts(
+  webhookTempBaseDir,
+  maxAgeHours = 24,
+  logger
+) {
+  if (!(await fs.pathExists(webhookTempBaseDir))) {
+    return;
+  }
+
+  logger.debug(
+    `Cleaning up old webhook artifacts older than ${maxAgeHours} hours`
+  );
+
+  const cutoffTime = new Date(Date.now() - maxAgeHours * 60 * 60 * 1000);
+  const entries = await fs.readdir(webhookTempBaseDir);
+  let cleanedCount = 0;
+
+  for (const entry of entries) {
+    const entryPath = join(webhookTempBaseDir, entry);
+
+    try {
+      const stat = await fs.stat(entryPath);
+      const entryTime = stat.birthtime || stat.ctime;
+
+      if (entryTime < cutoffTime) {
+        await fs.remove(entryPath);
+        cleanedCount++;
+        logger.debug(`Removed old webhook artifact: ${entry}`);
+      }
+    } catch (error) {
+      logger.warn(
+        `Failed to process webhook artifact ${entry}: ${error.message}`
+      );
+    }
+  }
+
+  if (cleanedCount > 0) {
+    logger.debug(`Cleaned up ${cleanedCount} old webhook artifacts`);
+  }
+}
