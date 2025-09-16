@@ -494,35 +494,6 @@ copy_build_artifacts() {
     verbose_log "Build artifacts copied successfully"
 }
 
-# Get environment file path
-get_env_file_path() {
-    # Check for environment files in dotenv directory structure as per BUILD_AND_DEPLOY.md
-    local dotenv_dir="$HOME_DIR/tobeit69/dotenv/$PACKAGE"
-    local env_file="$dotenv_dir/.env.$ENVIRONMENT"
-
-    if [ -f "$env_file" ]; then
-        echo "$env_file"
-        return
-    fi
-
-    # Fallback to package-level environment files
-    local package_dir="$REPO_ROOT/packages/$PACKAGE"
-    local package_env_file="$package_dir/.env.$ENVIRONMENT"
-    if [ -f "$package_env_file" ]; then
-        echo "$package_env_file"
-        return
-    fi
-
-    # If no environment-specific file, check for generic .env
-    local generic_env_file="$package_dir/.env"
-    if [ -f "$generic_env_file" ]; then
-        echo "$generic_env_file"
-        return
-    fi
-
-    verbose_log "No environment file found for $PACKAGE in environment $ENVIRONMENT"
-    echo ""
-}
 
 # Add environment file and metadata
 add_deployment_metadata() {
@@ -546,17 +517,6 @@ add_deployment_metadata() {
 
     # Generate timestamp
     timestamp=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
-
-    # Copy environment file if it exists
-    local env_file_path
-    env_file_path=$(get_env_file_path)
-
-    if [ -n "$env_file_path" ] && [ -f "$env_file_path" ]; then
-        verbose_log "Copying environment file: $env_file_path"
-        cp "$env_file_path" "$pruned_workspace/.env"
-    else
-        verbose_log "No environment file found, skipping environment file copy"
-    fi
 
     # Generate CDN asset manifest
     local cdn_assets_json
