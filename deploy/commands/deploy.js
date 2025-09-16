@@ -223,19 +223,21 @@ async function runHealthCheck(releasePath, packageName, environment, logger) {
     if (testServer) {
       // Wait for the process to actually terminate
       const promise = new Promise((resolve) => {
-        testServer.on("exit", () => {
-          logger.debug("Test server terminated");
-          resolve();
-        });
-
         // Force kill if it doesn't exit within 10 seconds
-        setTimeout(() => {
+        let forceTimeout = setTimeout(() => {
           if (!testServer.killed) {
-            process.kill(-testServer.pid, "SIGKILL");
+            try {
+              process.kill(-testServer.pid, "SIGKILL");
+            } catch {}
             logger.debug("Test server force killed");
           }
           resolve();
         }, 10_000);
+        testServer.on("exit", () => {
+          logger.debug("Test server terminated");
+          clearTimeout(forceTimeout);
+          resolve();
+        });
       });
 
       logger.debug("Sending signal to terminate test server...");
