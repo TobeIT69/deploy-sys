@@ -1,5 +1,5 @@
 import { spawn } from "child_process";
-import { HEALTH_CHECK, PORTS } from "../config.js";
+import { HEALTH_CHECK, PORTS, CDN_HEALTH_CHECK } from "../config.js";
 
 export async function findAvailablePort(
   min = HEALTH_CHECK.portRange.min,
@@ -107,4 +107,118 @@ export function getHealthCheckUrl(environment, packageName, port = null) {
     return `http://localhost:${targetPort}/health`;
   }
   return `http://localhost:${targetPort}`;
+}
+
+/**
+ * Checks if deployment uses CDN mode based on metadata
+ */
+export function isCdnMode(metadata) {
+  return metadata.assetPrefix && metadata.cdnAssets;
+}
+
+/**
+ * Performs HEAD requests to verify CDN assets are accessible
+ * Samples a subset of assets to avoid excessive requests
+ */
+export async function checkCdnAssets(metadata, logger) {
+  if (!CDN_HEALTH_CHECK.enabled || !isCdnMode(metadata)) {
+    return true;
+  }
+
+  const { assetPrefix, cdnAssets } = metadata;
+
+  // Collect all asset paths from all directories
+  const allAssets = [];
+  for (const [directory, files] of Object.entries(cdnAssets)) {
+    for (const file of files) {
+      // Files are uploaded as-is from .next/static folder
+      // packages/client/.next/static/chunks/app-123.js -> /_next/static/chunks/app-123.js
+      const relativePath = directory.replace(
+        /^packages\/[^/]+\/\.next/,
+        "/_next"
+      );
+      const assetUrl = `${assetPrefix}${relativePath}/${file}`;
+      allAssets.push({ file, url: assetUrl, directory });
+    }
+  }
+
+  if (allAssets.length === 0) {
+    logger.debug("No CDN assets to check");
+    return true;
+  }
+
+  // Sample random assets to check
+  const sampleSize = Math.min(CDN_HEALTH_CHECK.sampleSize, allAssets.length);
+  const sampledAssets = [];
+  const usedIndices = new Set();
+
+  while (sampledAssets.length < sampleSize) {
+    const randomIndex = Math.floor(Math.random() * allAssets.length);
+    if (!usedIndices.has(randomIndex)) {
+      usedIndices.add(randomIndex);
+      sampledAssets.push(allAssets[randomIndex]);
+    }
+  }
+
+  logger.debug(
+    `Checking ${sampleSize} CDN assets out of ${allAssets.length} total`
+  );
+
+  const results = await Promise.allSettled(
+    sampledAssets.map((asset) => checkCdnAsset(asset, logger))
+  );
+
+  const failed = results.filter((result) => result.status === "rejected");
+
+  if (failed.length > 0) {
+    logger.error(`${failed.length}/${sampleSize} CDN asset checks failed`);
+    failed.forEach((result, index) => {
+      const asset = sampledAssets[index];
+      logger.error(`Failed: ${asset.file} - ${result.reason.message}`);
+    });
+    return false;
+  }
+
+  logger.debug(`All ${sampleSize} CDN asset checks passed`);
+  return true;
+}
+
+/**
+ * Performs HEAD request to verify a single CDN asset
+ */
+async function checkCdnAsset(asset, logger) {
+  const { file, url } = asset;
+
+  for (let attempt = 1; attempt <= CDN_HEALTH_CHECK.retries; attempt++) {
+    try {
+      logger.debug(`Checking CDN asset: ${file} (attempt ${attempt})`);
+
+      const response = await fetch(url, {
+        method: "HEAD",
+        timeout: CDN_HEALTH_CHECK.timeout,
+      });
+
+      if (response.ok) {
+        logger.debug(`✓ CDN asset accessible: ${file}`);
+        return true;
+      } else {
+        throw new Error(`HTTP ${response.status}`);
+      }
+    } catch (error) {
+      const isLastAttempt = attempt === CDN_HEALTH_CHECK.retries;
+
+      if (isLastAttempt) {
+        throw new Error(
+          `CDN asset not accessible: ${file} at ${url} - ${error.message}`
+        );
+      }
+
+      logger.debug(
+        `Retry ${attempt}/${CDN_HEALTH_CHECK.retries} for ${file}: ${error.message}`
+      );
+      await new Promise((resolve) =>
+        setTimeout(resolve, CDN_HEALTH_CHECK.interval)
+      );
+    }
+  }
 }

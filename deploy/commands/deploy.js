@@ -14,6 +14,8 @@ import {
   startTestServer,
   healthCheck,
   getHealthCheckUrl,
+  isCdnMode,
+  checkCdnAssets,
 } from "../utils/healthCheck.js";
 import { updateVersionTracking } from "../utils/versions.js";
 import {
@@ -40,6 +42,14 @@ export async function deploy(options) {
       commit,
       timestamp: buildTimestamp,
     } = metadata;
+
+    // Log CDN mode information
+    if (isCdnMode(metadata)) {
+      const assetCount = Object.values(metadata.cdnAssets).flat().length;
+      logger.info(
+        `CDN Mode: ${assetCount} assets served from ${metadata.assetPrefix}`
+      );
+    }
 
     if (options.dryRun) {
       logger.info(
@@ -123,7 +133,17 @@ export async function deploy(options) {
       throw new Error(`Health check failed for ${prodUrl}`);
     }
 
-    // Step 10: Update version tracking
+    // Step 10: CDN asset health check (if in CDN mode)
+    if (isCdnMode(metadata)) {
+      logger.step("Verifying CDN asset accessibility");
+      const cdnHealthy = await checkCdnAssets(metadata, logger);
+
+      if (!cdnHealthy) {
+        throw new Error("CDN asset health check failed");
+      }
+    }
+
+    // Step 11: Update version tracking
     logger.step("Updating version tracking");
     const versionInfo = `${deploymentTimestamp}-${commit.substring(0, 7)}`;
     await updateVersionTracking(environment, packageName, {
@@ -133,7 +153,7 @@ export async function deploy(options) {
       releasePath,
     });
 
-    // Step 11: Cleanup old deployments
+    // Step 12: Cleanup old deployments
     await cleanupDeployments(environment, packageName, logger);
 
     logger.success(`✨ Deployment completed successfully!`);

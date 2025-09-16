@@ -27,3 +27,11 @@ export const CLEANUP = {
   keepCommits: 5,
   keepAttempts: 2,
 };
+
+export const CDN_HEALTH_CHECK = {
+  enabled: true,
+  sampleSize: 5, // Number of random assets to check
+  timeout: 10000, // 10 seconds per asset
+  retries: 2,
+  interval: 1000, // 1 second between retries
+};
