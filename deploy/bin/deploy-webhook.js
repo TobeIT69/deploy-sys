@@ -116,9 +116,7 @@ async function processDeploymentQueue() {
     const deploymentData = deploymentQueue.shift();
     const { deployment } = deploymentData.payload;
 
-    console.log(
-      `⚡ Processing deployment: ${deployment.payload.package} -> ${deployment.environment}`
-    );
+    console.log(`⚡ Processing deployment: ${deployment.environment}`);
 
     try {
       await webhookDeploy(deploymentData.payload);
