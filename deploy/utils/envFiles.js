@@ -52,7 +52,7 @@ export async function manageCdnEnvironment(packagePath, metadata, logger) {
 
   if (metadata.assetPrefix && metadata.cdnAssets) {
     // CDN mode: create .env.cdn file
-    const cdnContent = `${NEXT_PUBLIC_CDN_ASSETS_URL}=${metadata.assetPrefix}\n`;
+    const cdnContent = `NEXT_PUBLIC_CDN_ASSETS_URL=${metadata.assetPrefix}\n`;
     await fs.writeFile(cdnEnvFile, cdnContent);
     logger.debug(
       `Created CDN environment file with assetPrefix: ${metadata.assetPrefix}`
