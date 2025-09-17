@@ -48,7 +48,7 @@ This is a Node.js CLI tool for deploying TobeIT69 applications using atomic depl
 chmod +x bin/deploy.js
 
 # Install dependencies
-pnpm install
+npm install
 
 # Deploy from artifact
 ./bin/deploy.js deploy --artifact path/to/artifact.tar.gz [--dry-run] [--verbose]
@@ -68,6 +68,29 @@ pnpm install
 ```bash
 # Generate PM2 configs for all environments
 node generate-pm2-configs.js
+```
+
+### GitHub Webhook Server
+
+```bash
+# Start webhook server for automated deployments
+chmod +x bin/deploy-webhook.js
+./bin/deploy-webhook.js
+
+# Server listens on configured port (default: 3100)
+# Webhook endpoint: http://localhost:3100/api/webhook
+```
+
+### Development and Testing
+
+```bash
+# Install dependencies
+npm install
+
+# Test deployment with dry run
+./bin/deploy.js deploy --artifact path/to/artifact.tar.gz --dry-run --verbose
+
+# No formal test suite - use manual testing with actual artifacts
 ```
 
 ### Environment Configuration
@@ -102,6 +125,14 @@ artifact.tar.gz
 - **Retries**: 3 attempts with 1 second intervals
 - **Client Health Check**: `GET /` (expects 200 response)
 - **Server Health Check**: `GET /health` (expects 200 response)
+
+### CDN Health Check Configuration
+
+- **Enabled**: true
+- **Sample Size**: 5 random assets to check
+- **Timeout**: 10 seconds per asset
+- **Retries**: 2 attempts
+- **Retry Interval**: 1 second
 
 ## Cleanup Policy
 

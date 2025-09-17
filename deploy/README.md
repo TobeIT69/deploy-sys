@@ -1,12 +1,16 @@
 # TobeIT69 Deploy CLI
 
-A comprehensive deployment CLI tool for the TobeIT69 monorepo project, providing atomic deployments, rollbacks, and deployment management.
+A comprehensive deployment system for the TobeIT69 monorepo project, providing automated GitHub webhook deployments, atomic operations, rollbacks, and deployment management.
 
 ## Overview
 
-This CLI manages deployments from pre-built artifacts with the following key features:
+This deployment system supports both manual artifact deployments and automated GitHub webhook deployments with the following key features:
 
+- **GitHub Webhook Integration**: Automated deployments triggered by GitHub Actions via webhooks
 - **Atomic Deployments**: Symlink-based deployments with automatic rollback on failure
+- **Artifact Auto-Download**: Direct integration with GitHub Actions artifacts
+- **Deployment Status Tracking**: Real-time status updates via GitHub deployment API
+- **Queue-Based Processing**: Sequential webhook deployment processing
 - **Health Checks**: Isolated testing before production deployment
 - **Version Tracking**: Complete deployment history with commit and timestamp tracking
 - **Cleanup Management**: Automatic cleanup of old deployments (5 commits, 2 attempts per commit)
@@ -16,28 +20,74 @@ This CLI manages deployments from pre-built artifacts with the following key fea
 ## Installation
 
 ```bash
-cd scripts/deploy
+cd deploy/
 pnpm install
 chmod +x bin/deploy.js
+chmod +x bin/deploy-webhook.js
 ```
+
+## Configuration
+
+Copy the example environment file and configure your settings:
+
+```bash
+cp .env.example .env
+```
+
+### Required Environment Variables
+
+```bash
+# GitHub App Configuration (for webhook deployments)
+APP_ID=your-github-app-id
+PRIVATE_KEY_PATH=/path/to/private-key.pem
+APP_INSTALLATION_ID=your-installation-id
+WEBHOOK_SECRET=your-webhook-secret
+
+# Repository Configuration
+GITHUB_OWNER=tobeit69
+GITHUB_REPO=your-repository-name
+
+# Webhook Server Configuration
+WEBHOOK_PORT=3100
+WEBHOOK_HOST=localhost
+WEBHOOK_PATH=/api/webhook
+```
+
+**Note**: GitHub App configuration is required only for webhook deployments. Manual artifact deployments work without GitHub integration.
+
+## Deployment Methods
+
+The system supports two deployment methods:
+
+1. **Manual Deployment**: Deploy from local artifact files using the `deploy` command
+2. **Webhook Deployment**: Automated deployments triggered by GitHub webhooks using the webhook server
 
 ## Commands
 
-### `deploy` - Deploy from Artifact
+### `deploy` - Deploy from Artifact or GitHub Actions
 
-Deploy from a pre-built artifact (`.tar.gz` file) with automated health checks and cleanup.
+Deploy from a pre-built artifact file or directly from GitHub Actions run with automated health checks and cleanup.
 
 #### Usage
 
 ```bash
+# Deploy from local artifact file
 ./bin/deploy.js deploy --artifact <path> [--dry-run] [--verbose]
+
+# Deploy from GitHub Actions run
+./bin/deploy.js deploy --run-id <run-id> --package <package> [--deployment-id <id>] [--verbose]
 ```
 
 #### Options
 
-- `-a, --artifact <path>` - Path to deployment artifact (.tar.gz) **[Required]**
+- `-a, --artifact <path>` - Path to deployment artifact (.tar.gz)
+- `-r, --run-id <id>` - GitHub Actions workflow run ID to download artifact from
+- `-p, --package <name>` - Package name (client|server) **[Required when using --run-id]**
+- `-d, --deployment-id <id>` - GitHub deployment ID for status tracking
 - `--dry-run` - Validate artifact without deploying
 - `-v, --verbose` - Detailed logging output
+
+**Note**: Either `--artifact` or both `--run-id` and `--package` are required.
 
 #### Process Flow
 
@@ -56,8 +106,14 @@ Deploy from a pre-built artifact (`.tar.gz` file) with automated health checks a
 #### Examples
 
 ```bash
-# Deploy client to production
+# Deploy from local artifact file
 ./bin/deploy.js deploy --artifact ./artifacts/tobeit69-client-prod-abc123.tar.gz
+
+# Deploy from GitHub Actions run
+./bin/deploy.js deploy --run-id 1234567890 --package client --verbose
+
+# Deploy with deployment status tracking
+./bin/deploy.js deploy --run-id 1234567890 --package client --deployment-id 987654321
 
 # Dry run validation
 ./bin/deploy.js deploy --artifact ./artifacts/tobeit69-client-prod-abc123.tar.gz --dry-run
@@ -182,6 +238,64 @@ The verbose flag (`--verbose`) shows additional information:
 ./bin/deploy.js status --package client --env prod --verbose
 ```
 
+### `webhook` - GitHub Webhook Deployment Server
+
+Start the webhook server to receive GitHub deployment webhooks and automatically trigger deployments.
+
+#### Usage
+
+```bash
+./bin/deploy-webhook.js
+```
+
+#### Features
+
+- **GitHub App Authentication**: Secure webhook verification and API access
+- **Deployment Queue**: Sequential processing of multiple deployment requests
+- **Status Integration**: Automatic GitHub deployment status updates
+- **Error Handling**: Graceful handling of failed deployments with status reporting
+- **Artifact Auto-Download**: Automatic download from GitHub Actions artifacts
+
+#### Webhook Payload Structure
+
+The webhook server expects GitHub deployment webhooks with this payload format:
+
+```json
+{
+  "deployment": {
+    "id": 123456789,
+    "environment": "prod",
+    "ref": "abc123def456",
+    "payload": {
+      "package": "client",
+      "workflow_run_id": 9876543210
+    }
+  },
+  "repository": {
+    "full_name": "tobeit69/your-repo"
+  }
+}
+```
+
+#### Process Flow
+
+1. **Webhook Reception**: Receive and validate GitHub deployment webhook
+2. **Queue Management**: Add deployment to processing queue
+3. **Artifact Download**: Download artifact from specified GitHub Actions run
+4. **Status Updates**: Update GitHub deployment status throughout process
+5. **Deployment Execution**: Execute deployment using enhanced deploy command
+6. **Result Reporting**: Report success/failure status to GitHub
+
+#### Examples
+
+```bash
+# Start webhook server
+./bin/deploy-webhook.js
+
+# Server will listen on configured port (default: 3100)
+# Webhook endpoint: http://localhost:3100/api/webhook
+```
+
 ### `list` - List All Deployments
 
 Show deployment history for a specific package and environment.
@@ -244,6 +358,38 @@ The verbose flag (`--verbose`) shows additional information:
 ./bin/deploy.js list --package server --env staging
 ```
 
+## GitHub Integration
+
+### GitHub App Setup
+
+For webhook deployments, you need a GitHub App with the following permissions:
+
+- **Repository permissions**:
+  - Actions: Read (to download artifacts)
+  - Deployments: Write (to update deployment status)
+  - Contents: Read (for repository access)
+
+- **Subscribe to events**:
+  - Deployment
+
+### Webhook Configuration
+
+1. Create a GitHub App in your organization/repository settings
+2. Generate and download the private key
+3. Install the app on your repository
+4. Configure environment variables with app credentials
+5. Set up webhook URL in your GitHub App settings
+
+### Deployment Workflow Integration
+
+Typical CI/CD workflow:
+
+1. **Build**: GitHub Actions builds and uploads artifacts
+2. **Deploy**: GitHub Actions creates deployment with webhook payload
+3. **Webhook**: Deployment webhook triggers webhook server
+4. **Process**: Server downloads artifact and deploys automatically
+5. **Status**: Deployment status updated throughout process
+
 ## Environment Variable Management
 
 The deployment system automatically manages environment variables for each package and environment:
@@ -302,20 +448,26 @@ The deployment system automatically manages environment variables for each packa
 ### CLI Structure
 
 ```
-scripts/deploy/
+deploy/
 ├── bin/
-│   └── deploy.js                  # CLI entry point
+│   ├── deploy.js                  # Main CLI entry point
+│   └── deploy-webhook.js          # Webhook server entry point
 ├── commands/
 │   ├── deploy.js                  # Deploy command implementation
-│   └── rollback.js                # Rollback command implementation
+│   ├── rollback.js                # Rollback command implementation
+│   └── webhookDeploy.js           # Webhook deployment handler
 ├── utils/
+│   ├── artifactDownloader.js      # GitHub Actions artifact downloader
 │   ├── cleanup.js                 # Cleanup utilities
+│   ├── deploymentStatus.js        # GitHub deployment status tracking
 │   ├── fileOps.js                 # File operations
+│   ├── githubClient.js            # GitHub API client
 │   ├── healthCheck.js             # Health check utilities
 │   ├── logger.js                  # Logging utilities
 │   ├── paths.js                   # Path resolution
 │   ├── rollback.js                # Rollback utilities
 │   └── versions.js                # Version tracking
+├── .env.example                   # Environment configuration template
 ├── config.js                      # Configuration constants
 └── package.json                   # Dependencies and scripts
 ```
@@ -535,17 +687,60 @@ Enable detailed logging with the `--verbose` flag to see:
 Always use `--verbose` flag for detailed troubleshooting information:
 
 ```bash
+# Manual deployment debugging
 ./bin/deploy.js deploy --artifact ./artifact.tar.gz --verbose
 ./bin/deploy.js rollback --package client --env prod --verbose
+
+# GitHub Actions deployment debugging
+./bin/deploy.js deploy --run-id 1234567890 --package client --verbose
+```
+
+#### Webhook Server Issues
+
+1. **GitHub App Authentication**
+   - Verify APP_ID, PRIVATE_KEY_PATH, and APP_INSTALLATION_ID are correct
+   - Ensure private key file exists and is readable
+   - Check GitHub App has required permissions and is installed on repository
+
+2. **Webhook Delivery**
+   - Verify webhook URL is accessible from GitHub
+   - Check webhook secret matches WEBHOOK_SECRET environment variable
+   - Review webhook delivery logs in GitHub App settings
+
+3. **Artifact Download Issues**
+   - Ensure GitHub App has Actions: Read permission
+   - Verify workflow run ID exists and has uploaded artifacts
+   - Check artifact naming matches expected pattern: `tobeit69-{package}-*.tar.gz`
+
+#### GitHub Integration Debug Commands
+
+```bash
+# Test GitHub App authentication
+node -e "import('./utils/githubClient.js').then(m => m.getOctokit().then(() => console.log('✅ GitHub authentication successful')))"
+
+# Check repository configuration
+echo "Owner: $GITHUB_OWNER, Repo: $GITHUB_REPO"
+
+# Test webhook server connectivity
+curl -X POST http://localhost:3100/api/webhook -H "Content-Type: application/json" -d '{}'
 ```
 
 ## Dependencies
 
+### Core Dependencies
 - **commander**: CLI argument parsing
 - **tar**: Artifact extraction
 - **fs-extra**: Enhanced file system operations
+- **dotenv**: Environment variable management
+
+### GitHub Integration
+- **octokit**: GitHub API client and webhook handling
+- **@octokit/webhooks**: Webhook middleware
+
+### External Dependencies
 - **pm2**: Process management (external dependency)
 - **pnpm**: Package management (external dependency)
+- **unzip**: Archive extraction (system dependency)
 
 ## License
 
