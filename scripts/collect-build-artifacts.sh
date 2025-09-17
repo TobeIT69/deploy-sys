@@ -305,19 +305,19 @@ validate_cdn_environment() {
 
     verbose_log "Validating CDN environment variables"
 
-    if [ -z "$NEXT_CDN_ASSETS_URL" ]; then
-        error "NEXT_CDN_ASSETS_URL environment variable is required when using --use-cdn flag.
+    if [ -z "$NEXT_PUBLIC_CDN_ASSETS_URL" ]; then
+        error "NEXT_PUBLIC_CDN_ASSETS_URL environment variable is required when using --use-cdn flag.
 This URL should match the assetPrefix configured in your Next.js build process.
-Example: export NEXT_CDN_ASSETS_URL='https://cdn.example.com/assets'"
+Example: export NEXT_PUBLIC_CDN_ASSETS_URL='https://cdn.example.com/assets'"
     fi
 
     # Basic URL validation
-    case "$NEXT_CDN_ASSETS_URL" in
+    case "$NEXT_PUBLIC_CDN_ASSETS_URL" in
         http://*|https://*)
-            verbose_log "CDN assets URL is valid: $NEXT_CDN_ASSETS_URL"
+            verbose_log "CDN assets URL is valid: $NEXT_PUBLIC_CDN_ASSETS_URL"
             ;;
         *)
-            error "NEXT_CDN_ASSETS_URL must be a valid HTTP or HTTPS URL. Got: $NEXT_CDN_ASSETS_URL"
+            error "NEXT_PUBLIC_CDN_ASSETS_URL must be a valid HTTP or HTTPS URL. Got: $NEXT_PUBLIC_CDN_ASSETS_URL"
             ;;
     esac
 
@@ -548,7 +548,7 @@ add_deployment_metadata() {
     "pnpmVersion": "$pnpm_version",
     "buildTime": "$timestamp"
   },
-  "assetPrefix": "$NEXT_CDN_ASSETS_URL",
+  "assetPrefix": "$NEXT_PUBLIC_CDN_ASSETS_URL",
   "cdnAssets": $cdn_assets_json
 }
 EOF
@@ -582,7 +582,7 @@ EOF
     "pnpmVersion": "$pnpm_version",
     "buildTime": "$timestamp"
   },
-  "assetPrefix": "$NEXT_CDN_ASSETS_URL",
+  "assetPrefix": "$NEXT_PUBLIC_CDN_ASSETS_URL",
   "cdnAssets": $cdn_assets_json
 }
 EOF
