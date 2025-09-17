@@ -1,4 +1,4 @@
-import { App } from "octokit";
+import { App, Octokit } from "octokit";
 import fs from "fs";
 import path from "path";
 
@@ -36,6 +36,9 @@ function createGitHubApp() {
   return githubAppInstance;
 }
 
+/**
+ * @returns {Octokit}
+ */
 export async function getOctokit() {
   if (octokitInstance) {
     return octokitInstance;
@@ -77,4 +80,38 @@ export function getRepositoryInfo() {
     owner: process.env.GITHUB_OWNER,
     repo: process.env.GITHUB_REPO,
   };
+}
+
+export async function createDeployment({
+  environment,
+  ref,
+  skipWebhook = false,
+  workflowRunId = null,
+}) {
+  const octokit = await getOctokit();
+  const { owner, repo } = getRepositoryInfo();
+
+  const payload = {
+    skip_webhook: skipWebhook,
+  };
+
+  if (workflowRunId) {
+    payload.workflow_run_id = workflowRunId;
+  }
+
+  try {
+    const response = await octokit.rest.repos.createDeployment({
+      owner,
+      repo,
+      ref,
+      environment,
+      payload,
+      auto_merge: false,
+      required_contexts: [],
+    });
+
+    return response.data;
+  } catch (error) {
+    throw new Error(`Failed to create GitHub deployment: ${error.message}`);
+  }
 }

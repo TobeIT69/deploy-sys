@@ -264,11 +264,11 @@ The webhook server expects GitHub deployment webhooks with this payload format:
 {
   "deployment": {
     "id": 123456789,
-    "environment": "prod",
+    "environment": "prod-client",
     "ref": "abc123def456",
     "payload": {
-      "package": "client",
-      "workflow_run_id": 9876543210
+      "workflow_run_id": 9876543210,
+      "skip_webhook": false
     }
   },
   "repository": {
@@ -358,7 +358,55 @@ The verbose flag (`--verbose`) shows additional information:
 ./bin/deploy.js list --package server --env staging
 ```
 
-## GitHub Integration
+## Enhanced GitHub Integration
+
+### Environment Naming Convention
+
+The system now uses a unified environment naming convention that combines environment and package:
+
+- **Format**: `{env}-{package}`
+- **Examples**: `prod-client`, `staging-server`, `main-client`
+
+#### Benefits
+
+- **Package Independence**: Each package has its own deployment environment in GitHub
+- **Clear Separation**: Easy to distinguish between client and server deployments
+- **Better Visibility**: GitHub Deployments UI shows package-specific status
+- **Simplified Payload**: No need to specify package separately in webhook payload
+
+### Automatic GitHub Deployment Creation
+
+For manual artifact deployments, the system automatically creates GitHub deployments when:
+
+1. **GitHub is configured** (all required environment variables are set)
+2. **No deployment ID provided** (not triggered by webhook)
+3. **Valid artifact metadata** contains environment, package, and commit information
+
+The automatic deployment:
+- Uses commit hash from artifact metadata for accuracy
+- Sets `skip_webhook: true` to prevent recursive webhook triggers
+- Enables GitHub status tracking for manual deployments
+- Gracefully handles failures without breaking deployment
+
+### Skip Webhook Flag
+
+To prevent recursive deployments, the system supports a `skip_webhook` flag:
+
+```json
+{
+  "deployment": {
+    "payload": {
+      "skip_webhook": true,
+      "workflow_run_id": 1234567890
+    }
+  }
+}
+```
+
+**Behavior**:
+- When `skip_webhook: true`, the webhook server ignores the deployment event
+- Used by manual deployments that create GitHub deployments for status tracking
+- Prevents infinite loops between manual deployments and webhook server
 
 ### GitHub App Setup
 
@@ -380,15 +428,21 @@ For webhook deployments, you need a GitHub App with the following permissions:
 4. Configure environment variables with app credentials
 5. Set up webhook URL in your GitHub App settings
 
-### Deployment Workflow Integration
+### Deployment Workflows
 
-Typical CI/CD workflow:
-
+#### Automated Workflow (CI/CD)
 1. **Build**: GitHub Actions builds and uploads artifacts
-2. **Deploy**: GitHub Actions creates deployment with webhook payload
+2. **Deploy**: GitHub Actions creates deployment with `{env}-{package}` environment
 3. **Webhook**: Deployment webhook triggers webhook server
 4. **Process**: Server downloads artifact and deploys automatically
 5. **Status**: Deployment status updated throughout process
+
+#### Manual Workflow
+1. **Artifact**: Pre-built artifact contains metadata with commit hash
+2. **Deploy**: Manual deployment command extracts metadata
+3. **GitHub Creation**: System creates GitHub deployment with `skip_webhook: true`
+4. **Process**: Deployment proceeds with GitHub status tracking
+5. **Status**: GitHub deployment status updated throughout process
 
 ## Environment Variable Management
 

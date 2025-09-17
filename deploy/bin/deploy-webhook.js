@@ -52,6 +52,15 @@ app.webhooks.on("deployment.created", async ({ payload, id }) => {
     try {
       payload.deployment.payload = JSON.parse(payload.deployment.payload);
     } catch {}
+
+    // Check for skip_webhook flag
+    if (payload.deployment.payload?.skip_webhook === true) {
+      console.log(
+        `⏭️  Skipping webhook deployment due to skip_webhook flag: ${id}`
+      );
+      return;
+    }
+
     // Validate the deployment payload
     validateDeploymentPayload(payload);
 

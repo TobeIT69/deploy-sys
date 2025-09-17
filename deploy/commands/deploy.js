@@ -27,6 +27,8 @@ import {
   cleanupArtifactDownload,
 } from "../utils/artifactDownloader.js";
 import { updateDeploymentStatus } from "../utils/deploymentStatus.js";
+import { createDeployment, isGitHubConfigured } from "../utils/githubClient.js";
+import { formatEnvironment } from "../utils/parseEnvironment.js";
 
 export async function deploy(options) {
   const logger = new Logger(options.verbose);
@@ -69,6 +71,33 @@ export async function deploy(options) {
     logger.debug(`Metadata: ${JSON.stringify(metadata, null, 2)}`);
 
     const { environment, package: packageName, commit } = metadata;
+
+    // Create GitHub deployment if not provided and GitHub is configured
+    if (!options.deploymentId && isGitHubConfigured()) {
+      try {
+        logger.step("Creating GitHub deployment");
+
+        const deploymentEnvironment = formatEnvironment(
+          environment,
+          packageName
+        );
+        const deployment = await createDeployment({
+          environment: deploymentEnvironment,
+          ref: commit,
+          skipWebhook: true,
+          workflowRunId: options.runId,
+        });
+
+        options.deploymentId = deployment.id;
+
+        logger.info(
+          `📋 Created GitHub deployment: ${deployment.id} for ${deploymentEnvironment}`
+        );
+      } catch (error) {
+        logger.warn(`⚠️  Failed to create GitHub deployment: ${error.message}`);
+        logger.info("Continuing with deployment without GitHub status updates");
+      }
+    }
 
     // Log CDN mode information
     if (isCdnMode(metadata)) {
