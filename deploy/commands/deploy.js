@@ -21,7 +21,10 @@ import {
   cleanupDeployments,
   cleanupFailedDeployment,
 } from "../utils/cleanup.js";
-import { copyEnvironmentFile } from "../utils/envFiles.js";
+import {
+  copyEnvironmentFile,
+  manageCdnEnvironment,
+} from "../utils/envFiles.js";
 import {
   downloadArtifactFromRun,
   cleanupArtifactDownload,
@@ -142,17 +145,22 @@ export async function deploy(options) {
     logger.step("Copying environment file");
     await copyEnvironmentFile(releasePath, packageName, environment, logger);
 
-    // Step 5: Install production dependencies
+    // Step 5: Manage CDN environment variables
+    logger.step("Configuring CDN environment");
+    const packagePath = join(releasePath, "packages", packageName);
+    await manageCdnEnvironment(packagePath, metadata, logger);
+
+    // Step 6: Install production dependencies
     logger.step("Installing production dependencies");
     await execCommand(
       `cd "${releasePath}" && pnpm install --prod --frozen-lockfile`
     );
 
-    // Step 6: Isolated health check
+    // Step 7: Isolated health check
     logger.step("Running isolated health check");
     await runHealthCheck(releasePath, packageName, environment, logger);
 
-    // Step 7: Atomic deployment
+    // Step 8: Atomic deployment
     logger.step("Performing atomic deployment");
 
     // Update deployment status if deployment ID is provided
@@ -166,7 +174,7 @@ export async function deploy(options) {
 
     await updateSymlink(releasePath, paths.current);
 
-    // Step 8: Start or reload PM2 service
+    // Step 9: Start or reload PM2 service
     logger.step("Starting/reloading PM2 service");
     const serviceName = `tobeit69-${packageName}-${environment}`;
 
@@ -190,7 +198,7 @@ export async function deploy(options) {
       throw new Error(`PM2 service ${serviceName} failed to start`);
     }
 
-    // Step 9: Final health check on production ports
+    // Step 10: Final health check on production ports
     logger.step("Running final health check on production ports");
     const prodUrl = getHealthCheckUrl(environment, packageName);
     const isHealthy = await healthCheck(prodUrl);
@@ -199,7 +207,7 @@ export async function deploy(options) {
       throw new Error(`Health check failed for ${prodUrl}`);
     }
 
-    // Step 10: CDN asset health check (if in CDN mode)
+    // Step 11: CDN asset health check (if in CDN mode)
     if (isCdnMode(metadata)) {
       logger.step("Verifying CDN asset accessibility");
       const cdnHealthy = await checkCdnAssets(metadata, logger);

@@ -480,6 +480,12 @@ copy_build_artifacts() {
                 verbose_log "Copying public directory"
                 cp -r "$package_dir/public" "$target_package_dir/public"
             fi
+
+            # Copy next.config.ts if it exists
+            if [ -f "$package_dir/next.config.ts" ]; then
+                verbose_log "Copying next.config.ts"
+                cp "$package_dir/next.config.ts" "$target_package_dir/next.config.ts"
+            fi
             ;;
         server)
             # Copy server build outputs

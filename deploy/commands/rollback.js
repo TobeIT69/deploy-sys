@@ -1,4 +1,5 @@
 import fs from "fs-extra";
+import { join } from "path";
 import { Logger } from "../utils/logger.js";
 import { getDeploymentPaths } from "../utils/paths.js";
 import { updateSymlink, execCommand } from "../utils/fileOps.js";
@@ -9,7 +10,10 @@ import {
   getRollbackCandidates,
 } from "../utils/rollback.js";
 import { updateVersionTracking, getVersionHistory } from "../utils/versions.js";
-import { copyEnvironmentFile } from "../utils/envFiles.js";
+import {
+  copyEnvironmentFile,
+  manageCdnEnvironment,
+} from "../utils/envFiles.js";
 
 export async function rollback(options) {
   const logger = new Logger(options.verbose);
@@ -79,7 +83,31 @@ export async function rollback(options) {
     logger.step("Performing atomic rollback");
     await updateSymlink(rollbackTarget.releasePath, paths.current);
 
-    // Step 7: Start or reload PM2 service
+    // Step 7: Configure CDN environment for rollback target
+    logger.step("Configuring CDN environment");
+    const packagePath = join(
+      rollbackTarget.releasePath,
+      "packages",
+      packageName
+    );
+
+    // Read metadata from the deployment directory
+    const metadataFile = join(rollbackTarget.releasePath, "metadata.json");
+    let rollbackMetadata = {};
+    if (await fs.pathExists(metadataFile)) {
+      try {
+        rollbackMetadata = await fs.readJson(metadataFile);
+        logger.debug(`Loaded metadata from ${metadataFile}`);
+      } catch (error) {
+        logger.warn(`Failed to read metadata file: ${error.message}`);
+      }
+    } else {
+      logger.debug("No metadata file found - assuming non-CDN deployment");
+    }
+
+    await manageCdnEnvironment(packagePath, rollbackMetadata, logger);
+
+    // Step 8: Start or reload PM2 service
     logger.step("Starting/reloading PM2 service");
     const serviceName = `tobeit69-${packageName}-${environment}`;
 
@@ -142,9 +170,9 @@ export async function rollback(options) {
 }
 
 async function performRollbackHealthCheck(
-  rollbackTarget,
-  packageName,
-  environment,
+  _rollbackTarget,
+  _packageName,
+  _environment,
   logger
 ) {
   // For rollback, we trust that if the deployment directory exists and has the right structure,

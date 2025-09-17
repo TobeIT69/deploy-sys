@@ -40,3 +40,28 @@ export async function copyEnvironmentFile(
 
   logger.debug(`Environment file copied successfully`);
 }
+
+/**
+ * Manage CDN environment variables for a package deployment
+ * @param {string} packagePath - Path to the package directory
+ * @param {Object} metadata - Deployment metadata containing assetPrefix
+ * @param {Object} logger - Logger instance
+ */
+export async function manageCdnEnvironment(packagePath, metadata, logger) {
+  const cdnEnvFile = join(packagePath, ".env.cdn");
+
+  if (metadata.assetPrefix && metadata.cdnAssets) {
+    // CDN mode: create .env.cdn file
+    const cdnContent = `${NEXT_PUBLIC_CDN_ASSETS_URL}=${metadata.assetPrefix}\n`;
+    await fs.writeFile(cdnEnvFile, cdnContent);
+    logger.debug(
+      `Created CDN environment file with assetPrefix: ${metadata.assetPrefix}`
+    );
+  } else {
+    // Non-CDN mode: remove .env.cdn file if it exists
+    if (await fs.pathExists(cdnEnvFile)) {
+      await fs.remove(cdnEnvFile);
+      logger.debug("Removed CDN environment file (non-CDN mode)");
+    }
+  }
+}
