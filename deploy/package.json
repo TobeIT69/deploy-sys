@@ -11,8 +11,9 @@
   },
   "dependencies": {
     "commander": "^12.0.0",
-    "tar": "^7.0.0",
-    "fs-extra": "^11.2.0"
+    "dotenv": "^17.2.2",
+    "fs-extra": "^11.3.2",
+    "tar": "^7.4.3"
   },
   "keywords": [
     "deploy",
