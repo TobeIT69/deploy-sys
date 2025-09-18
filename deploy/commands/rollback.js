@@ -14,6 +14,7 @@ import {
   copyEnvironmentFile,
   manageCdnEnvironment,
 } from "../utils/envFiles.js";
+import { sendDiscordNotification } from "../utils/discordNotifications.js";
 
 export async function rollback(options) {
   const logger = new Logger(options.verbose);
@@ -153,6 +154,16 @@ export async function rollback(options) {
       releasePath: rollbackTarget.releasePath,
     });
 
+    // Send Discord notification for successful rollback
+    await sendDiscordNotification("success", {
+      packageName,
+      environment,
+      commit: rollbackTarget.commit,
+      versionInfo: `Rolled back to ${rollbackTarget.version}`,
+      isLocalArtifact: true, // Rollbacks are manual/local operations
+      triggerSource: "manual",
+    });
+
     logger.success("✨ Rollback completed successfully!");
     logger.info(`Package: ${packageName}`);
     logger.info(`Environment: ${environment}`);
@@ -165,6 +176,17 @@ export async function rollback(options) {
     if (options.verbose) {
       logger.error(error.stack);
     }
+
+    // Send Discord notification for failed rollback
+    const { package: packageName, env: environment } = options;
+    await sendDiscordNotification("failure", {
+      packageName,
+      environment,
+      error: `Rollback failed: ${error.message}`,
+      isLocalArtifact: true, // Rollbacks are manual/local operations
+      triggerSource: "manual",
+    });
+
     throw error;
   }
 }

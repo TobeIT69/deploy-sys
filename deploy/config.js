@@ -35,3 +35,9 @@ export const CDN_HEALTH_CHECK = {
   retries: 2,
   interval: 1000, // 1 second between retries
 };
+
+export const DISCORD = {
+  webhookUrl: process.env.DISCORD_WEBHOOK_URL,
+  enabled: !!process.env.DISCORD_WEBHOOK_URL,
+  timeout: 10000, // 10 seconds timeout for Discord webhook requests
+};

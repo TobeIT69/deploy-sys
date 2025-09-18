@@ -36,6 +36,7 @@ export async function webhookDeploy(payload) {
       deploymentId: deploymentId,
       verbose: true,
       dryRun: false,
+      triggerSource: "webhook", // Indicate this is an automated webhook deployment
     });
 
     logger.success(`✨ Webhook deployment completed successfully!`);

@@ -32,11 +32,13 @@ import {
 import { updateDeploymentStatus } from "../utils/deploymentStatus.js";
 import { createDeployment, isGitHubConfigured } from "../utils/githubClient.js";
 import { formatEnvironment } from "../utils/parseEnvironment.js";
+import { sendDiscordNotification } from "../utils/discordNotifications.js";
 
 export async function deploy(options) {
   const logger = new Logger(options.verbose);
   let releasePath = null;
   let downloadTempDir = null;
+  const triggerSource = options.triggerSource || "manual";
 
   try {
     logger.info("Starting deployment process");
@@ -74,6 +76,17 @@ export async function deploy(options) {
     logger.debug(`Metadata: ${JSON.stringify(metadata, null, 2)}`);
 
     const { environment, package: packageName, commit } = metadata;
+
+    // Send Discord notification for deployment start
+    await sendDiscordNotification("deploying", {
+      packageName,
+      environment,
+      commit,
+      deploymentId: options.deploymentId,
+      workflowRunId: options.runId,
+      isLocalArtifact: !options.runId,
+      triggerSource,
+    });
 
     // Create GitHub deployment if not provided and GitHub is configured
     if (!options.deploymentId && isGitHubConfigured()) {
@@ -172,6 +185,17 @@ export async function deploy(options) {
       );
     }
 
+    // Send Discord notification for deployment in progress
+    await sendDiscordNotification("in_progress", {
+      packageName,
+      environment,
+      commit,
+      deploymentId: options.deploymentId,
+      workflowRunId: options.runId,
+      isLocalArtifact: !options.runId,
+      triggerSource,
+    });
+
     await updateSymlink(releasePath, paths.current);
 
     // Step 9: Start or reload PM2 service
@@ -239,6 +263,18 @@ export async function deploy(options) {
       );
     }
 
+    // Send Discord notification for successful deployment
+    await sendDiscordNotification("success", {
+      packageName,
+      environment,
+      commit,
+      deploymentId: options.deploymentId,
+      versionInfo,
+      workflowRunId: options.runId,
+      isLocalArtifact: !options.runId,
+      triggerSource,
+    });
+
     logger.success(`✨ Deployment completed successfully!`);
     logger.info(`Package: ${packageName}`);
     logger.info(`Environment: ${environment}`);
@@ -269,6 +305,28 @@ export async function deploy(options) {
         `Deployment failed: ${error.message}`
       );
     }
+
+    // Send Discord notification for failed deployment
+    // Extract metadata if available for better error context
+    let errorPackageName, errorEnvironment, errorCommit;
+    try {
+      if (metadata) {
+        ({ environment: errorEnvironment, package: errorPackageName, commit: errorCommit } = metadata);
+      }
+    } catch (metadataError) {
+      // Ignore metadata extraction errors in error handler
+    }
+
+    await sendDiscordNotification("failure", {
+      packageName: errorPackageName,
+      environment: errorEnvironment,
+      commit: errorCommit,
+      deploymentId: options.deploymentId,
+      error: error.message,
+      workflowRunId: options.runId,
+      isLocalArtifact: !options.runId,
+      triggerSource,
+    });
 
     // Cleanup failed deployment
     if (releasePath) {
