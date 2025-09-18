@@ -1,16 +1,11 @@
 #!/usr/bin/env node
 
-import dotenv from "dotenv";
-import path from "path";
+import "../utils/requireDotEnv.js";
 import { Command } from "commander";
 import { deploy } from "../commands/deploy.js";
 import { rollback } from "../commands/rollback.js";
 import { status } from "../commands/status.js";
 import { list } from "../commands/list.js";
-
-dotenv.config({
-  path: path.join(import.meta.dirname, "../.env"),
-});
 
 const program = new Command();
 

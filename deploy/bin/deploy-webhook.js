@@ -1,19 +1,14 @@
 #!/usr/bin/env node
 
-import dotenv from "dotenv";
+import "../utils/requireDotEnv.js";
 import { App } from "octokit";
 import { createNodeMiddleware } from "@octokit/webhooks";
 import fs from "fs";
 import http from "http";
-import path from "path";
 import {
   webhookDeploy,
   validateDeploymentPayload,
 } from "../commands/webhookDeploy.js";
-
-dotenv.config({
-  path: path.join(import.meta.dirname, "../.env"),
-});
 
 const appId = process.env.APP_ID;
 const webhookSecret = process.env.WEBHOOK_SECRET;
