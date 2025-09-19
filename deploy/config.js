@@ -41,3 +41,18 @@ export const DISCORD = {
   enabled: !!process.env.DISCORD_WEBHOOK_URL,
   timeout: 10000, // 10 seconds timeout for Discord webhook requests
 };
+
+export const PUBLIC_HEALTH_CHECK = {
+  enabled: true,
+  timeout: 30000, // 30 seconds timeout for public URL health check
+  retries: 3,
+  interval: 2000, // 2 seconds between retries
+  delay: 5000, // 5 seconds delay after PM2 deployment before checking
+};
+
+// Public deployment URLs by environment (configured via environment variables)
+export const PUBLIC_URLS = {
+  main: process.env.PUBLIC_DEPLOY_URL_MAIN,
+  staging: process.env.PUBLIC_DEPLOY_URL_STAGING,
+  prod: process.env.PUBLIC_DEPLOY_URL_PROD,
+};

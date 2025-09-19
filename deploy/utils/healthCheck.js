@@ -1,5 +1,11 @@
 import { spawn } from "child_process";
-import { HEALTH_CHECK, PORTS, CDN_HEALTH_CHECK } from "../config.js";
+import {
+  HEALTH_CHECK,
+  PORTS,
+  CDN_HEALTH_CHECK,
+  PUBLIC_HEALTH_CHECK,
+  PUBLIC_URLS,
+} from "../config.js";
 
 export async function findAvailablePort(
   min = HEALTH_CHECK.portRange.min,
@@ -221,4 +227,83 @@ async function checkCdnAsset(asset, logger) {
       );
     }
   }
+}
+
+/**
+ * Gets the public URL for health checking based on environment and package
+ */
+export function getPublicHealthCheckUrl(environment, packageName) {
+  const baseUrl = PUBLIC_URLS[environment];
+
+  if (!baseUrl) {
+    throw new Error(
+      `Public URL not configured for environment: ${environment}`
+    );
+  }
+
+  if (packageName === "server") {
+    return `${baseUrl}/api/health`;
+  }
+
+  return baseUrl;
+}
+
+/**
+ * Performs health check on the public-facing URL
+ */
+export async function publicHealthCheck(environment, packageName, logger) {
+  if (!PUBLIC_HEALTH_CHECK.enabled) {
+    logger.debug("Public health check disabled");
+    return true;
+  }
+
+  const baseUrl = PUBLIC_URLS[environment];
+  if (!baseUrl) {
+    logger.warn(
+      `Public URL not configured for environment: ${environment}, skipping public health check`
+    );
+    return true;
+  }
+
+  const url = getPublicHealthCheckUrl(environment, packageName);
+
+  logger.debug(`Starting public health check for ${url}`);
+
+  for (let attempt = 1; attempt <= PUBLIC_HEALTH_CHECK.retries; attempt++) {
+    try {
+      logger.debug(
+        `Public health check attempt ${attempt}/${PUBLIC_HEALTH_CHECK.retries}: ${url}`
+      );
+
+      const response = await fetch(url, {
+        timeout: PUBLIC_HEALTH_CHECK.timeout,
+      });
+
+      if (response.ok) {
+        logger.debug(`✓ Public health check passed: ${url}`);
+        return true;
+      } else {
+        throw new Error(`HTTP ${response.status}`);
+      }
+    } catch (error) {
+      const isLastAttempt = attempt === PUBLIC_HEALTH_CHECK.retries;
+
+      if (isLastAttempt) {
+        logger.error(`✗ Public health check failed: ${url} - ${error.message}`);
+        return false;
+      }
+
+      logger.debug(
+        `Public health check retry ${attempt}/${PUBLIC_HEALTH_CHECK.retries}: ${error.message}`
+      );
+
+      if (attempt < PUBLIC_HEALTH_CHECK.retries) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, PUBLIC_HEALTH_CHECK.interval)
+        );
+      }
+    }
+  }
+
+  return false;
 }

@@ -15,6 +15,7 @@ import {
   getHealthCheckUrl,
   isCdnMode,
   checkCdnAssets,
+  publicHealthCheck,
 } from "../utils/healthCheck.js";
 import { updateVersionTracking } from "../utils/versions.js";
 import {
@@ -231,7 +232,19 @@ export async function deploy(options) {
       }
     }
 
-    // Step 11: Update version tracking
+    // Step 12: Public URL health check
+    logger.step("Running public URL health check");
+
+    // Wait for a few seconds to ensure the deployment is fully ready
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+
+    const isPublicHealthy = await publicHealthCheck(environment, packageName, logger);
+
+    if (!isPublicHealthy) {
+      throw new Error("Public URL health check failed - deployment will be rolled back");
+    }
+
+    // Step 13: Update version tracking
     logger.step("Updating version tracking");
     const versionInfo = `${deploymentTimestamp}-${commit.substring(0, 7)}`;
     await updateVersionTracking(environment, packageName, {
@@ -241,7 +254,7 @@ export async function deploy(options) {
       releasePath,
     });
 
-    // Step 12: Cleanup old deployments
+    // Step 14: Cleanup old deployments
     await cleanupDeployments(environment, packageName, logger);
 
     // Update deployment status to success if deployment ID is provided

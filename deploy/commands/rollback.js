@@ -3,7 +3,11 @@ import { join } from "path";
 import { Logger } from "../utils/logger.js";
 import { getDeploymentPaths } from "../utils/paths.js";
 import { updateSymlink, execCommand } from "../utils/fileOps.js";
-import { healthCheck, getHealthCheckUrl } from "../utils/healthCheck.js";
+import {
+  healthCheck,
+  getHealthCheckUrl,
+  publicHealthCheck,
+} from "../utils/healthCheck.js";
 import {
   findRollbackTarget,
   validateRollbackTarget,
@@ -145,7 +149,23 @@ export async function rollback(options) {
       throw new Error(`Health check failed after rollback: ${prodUrl}`);
     }
 
-    // Step 9: Update version tracking
+    // Step 9: Public URL health check
+    logger.step("Running public URL health check after rollback");
+
+    // Wait for a few seconds to ensure the rollback is fully ready
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+
+    const isPublicHealthy = await publicHealthCheck(
+      environment,
+      packageName,
+      logger
+    );
+
+    if (!isPublicHealthy) {
+      throw new Error("Public URL health check failed after rollback");
+    }
+
+    // Step 10: Update version tracking
     logger.step("Updating version tracking");
     await updateVersionTracking(environment, packageName, {
       version: rollbackTarget.version,
