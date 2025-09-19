@@ -73,7 +73,8 @@ export async function deploy(options) {
     // Step 1: Validate artifact and extract metadata
     logger.step("Validating artifact and extracting metadata");
     metadata = await readMetadata(artifactPath);
-    logger.debug(`Metadata: ${JSON.stringify(metadata, null, 2)}`);
+    const { cdnAssets: _, ...metadataToLog } = metadata;
+    logger.debug(`Metadata: ${JSON.stringify(metadataToLog, null, 2)}`);
 
     const { environment, package: packageName, commit } = metadata;
 
@@ -184,17 +185,6 @@ export async function deploy(options) {
         `Deploying ${packageName} to ${environment}`
       );
     }
-
-    // Send Discord notification for deployment in progress
-    await sendDiscordNotification("in_progress", {
-      packageName,
-      environment,
-      commit,
-      deploymentId: options.deploymentId,
-      workflowRunId: options.runId,
-      isLocalArtifact: !options.runId,
-      triggerSource,
-    });
 
     await updateSymlink(releasePath, paths.current);
 
@@ -311,7 +301,11 @@ export async function deploy(options) {
     let errorPackageName, errorEnvironment, errorCommit;
     try {
       if (metadata) {
-        ({ environment: errorEnvironment, package: errorPackageName, commit: errorCommit } = metadata);
+        ({
+          environment: errorEnvironment,
+          package: errorPackageName,
+          commit: errorCommit,
+        } = metadata);
       }
     } catch (metadataError) {
       // Ignore metadata extraction errors in error handler
