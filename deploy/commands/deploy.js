@@ -19,7 +19,7 @@ import {
 } from "../utils/healthCheck.js";
 import { updateVersionTracking } from "../utils/versions.js";
 import {
-  cleanupDeployments,
+  // cleanupDeployments,
   cleanupFailedDeployment,
 } from "../utils/cleanup.js";
 import {
@@ -238,10 +238,16 @@ export async function deploy(options) {
     // Wait for a few seconds to ensure the deployment is fully ready
     await new Promise((resolve) => setTimeout(resolve, 5000));
 
-    const isPublicHealthy = await publicHealthCheck(environment, packageName, logger);
+    const isPublicHealthy = await publicHealthCheck(
+      environment,
+      packageName,
+      logger
+    );
 
     if (!isPublicHealthy) {
-      throw new Error("Public URL health check failed - deployment will be rolled back");
+      throw new Error(
+        "Public URL health check failed - deployment will be rolled back"
+      );
     }
 
     // Step 13: Update version tracking
@@ -255,7 +261,7 @@ export async function deploy(options) {
     });
 
     // Step 14: Cleanup old deployments
-    await cleanupDeployments(environment, packageName, logger);
+    // await cleanupDeployments(environment, packageName, logger);
 
     // Update deployment status to success if deployment ID is provided
     if (options.deploymentId) {
